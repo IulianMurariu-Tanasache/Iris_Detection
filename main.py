@@ -1,10 +1,21 @@
+
+
 import cv2
 import numpy
+import numpy as np
 
 
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
     return frame[zone[1]:zone[1] + zone[3], zone[0]:zone[0] + zone[2]]
 
+class Cercul:
+    def __init__(self):
+        self.centrus = 0
+        self.centrud = 0
+        self.raza = 0
+        print('centrus....', self.centrus)
+        print('centrus....', self.centrud)
+        print('raza', self.raza)
 
 if __name__ == '__main__':
     # obiectul video care acceseaza camera
@@ -41,13 +52,20 @@ if __name__ == '__main__':
                     c = cv2.HoughCircles(image=edges, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew, param1=otsu_thresh,
                                          param2=44.5, minRadius=6, maxRadius=13)
                     # Then mask the pupil from the image and store it's coordinates.
+                    memorie = []
+                    for i in range(30):
+                       memorie.append(Cercul())
                     if c is not None:
+
                         for l in c:
                             # OpenCV returns the circles as a list of lists of circles
                             for circle in l:
                                 if type(circle) == numpy.ndarray:
                                     center = (int(x + ex + circle[0]), int(y + ey + circle[1]))
+                                    memorie[l].centrus = center[0]
+                                    memorie[l].centrud = center[1]
                                     radius = int(circle[2])
+                                    memorie[l].raza = radius
                                     # print(c, l, circle)
                                     cv2.circle(frame, center, int(radius), (0, 0, 255), thickness=2)
                                     pupil = (center[0], center[1], radius)
