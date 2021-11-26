@@ -26,7 +26,7 @@ def mean_circle(lists_left):
     return mean_c
 
 
-marja_eroare = 10
+marja_eroare = 5
 
 
 # TODO: -procentaj la marja
@@ -37,11 +37,11 @@ marja_eroare = 10
 def check_mean(circle, mean_c):
     centru_x = circle.centru[0]
     centru_y = circle.centru[1]
-    if not mean_c.centru[0] - marja_eroare <= circle.centru[0] <= mean_c.centru[0] + marja_eroare:
+    if not mean_c.centru[0] - (mean_c.centru[0]*marja_eroare)/100 <= circle.centru[0] <= mean_c.centru[0] + (mean_c.centru[0]*marja_eroare)/100:
         centru_x = mean_c.centru[0]
-    if not mean_c.centru[1] - marja_eroare <= circle.centru[1] <= mean_c.centru[1] + marja_eroare:
+    if not mean_c.centru[1] - (marja_eroare*mean_c.centru[1])/100 <= circle.centru[1] <= mean_c.centru[1] + (mean_c.centru[1]*marja_eroare)/100:
         centru_y = mean_c.centru[1]
-    if not mean_c.raza - marja_eroare <= circle.raza <= mean_c.raza + marja_eroare:
+    if not mean_c.raza - (mean_c.raza*marja_eroare)/100 <= circle.raza <= mean_c.raza + (mean_c.raza*marja_eroare)/100:
         circle.raza = mean_c.raza
     circle.centru = (centru_x, centru_y)
     return circle
