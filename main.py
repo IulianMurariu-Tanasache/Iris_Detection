@@ -3,6 +3,8 @@ from statistics import mean
 import cv2
 import numpy
 
+marja_eroare = 12
+
 
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
     return frame[zone[1]:zone[1] + zone[3], zone[0]:zone[0] + zone[2]]
@@ -26,22 +28,28 @@ def mean_circle(lists_left):
     return mean_c
 
 
-marja_eroare = 5
-
-
-# TODO: -procentaj la marja
-#       -refacuta media constant pentru a ajusta la miscari
+# TODO:
 #       -sa fie incadrat in patratul ochilui?
+
+def mean_of_mean(mean, cerc):  #primul este media care contine cele doua chestii, centru si raza
+    n_mean = int((mean.centru[0] + cerc.centru[0])/2)
+    n_mean2 = int((mean.centru[1] + cerc.centru[1])/2)
+    n_raza = int((cerc.raza + mean.raza)/2)
+    nou = (n_mean, n_mean2)
+    return Cercul(nou, n_raza)
 
 
 def check_mean(circle, mean_c):
     centru_x = circle.centru[0]
     centru_y = circle.centru[1]
-    if not mean_c.centru[0] - (mean_c.centru[0]*marja_eroare)/100 <= circle.centru[0] <= mean_c.centru[0] + (mean_c.centru[0]*marja_eroare)/100:
+    if not mean_c.centru[0] - (mean_c.centru[0] * marja_eroare) / 100 <= circle.centru[0] <= mean_c.centru[0] + (
+            mean_c.centru[0] * marja_eroare) / 100:
         centru_x = mean_c.centru[0]
-    if not mean_c.centru[1] - (marja_eroare*mean_c.centru[1])/100 <= circle.centru[1] <= mean_c.centru[1] + (mean_c.centru[1]*marja_eroare)/100:
+    if not mean_c.centru[1] - (marja_eroare * mean_c.centru[1]) / 100 <= circle.centru[1] <= mean_c.centru[1] + (
+            mean_c.centru[1] * marja_eroare) / 100:
         centru_y = mean_c.centru[1]
-    if not mean_c.raza - (mean_c.raza*marja_eroare)/100 <= circle.raza <= mean_c.raza + (mean_c.raza*marja_eroare)/100:
+    if not mean_c.raza - (mean_c.raza * marja_eroare) / 100 <= circle.raza <= mean_c.raza + (
+            mean_c.raza * marja_eroare) / 100:
         circle.raza = mean_c.raza
     circle.centru = (centru_x, centru_y)
     return circle
@@ -74,7 +82,7 @@ def main():
 
         eyes = []
         roi_color = None
-
+#aici punem if ul ala dubios
         if index_left == frames_correction:
             mean_circle_left = mean_circle(to_list(iris_left))
             index_left += 1
@@ -116,6 +124,8 @@ def main():
                                             index_left += 1
                                         else:
                                             cerc = check_mean(cerc, mean_circle_left)
+                                            if index_left > frames_correction:
+                                                mean_circle_left = mean_of_mean(mean_circle_left, cerc)
                                     elif (x + w / 2) < cerc.centru[0] < x + w:
                                         print('Dreapta')
                                         if index_right < frames_correction:
@@ -123,11 +133,13 @@ def main():
                                             index_right += 1
                                         else:
                                             cerc = check_mean(cerc, mean_circle_right)
+                                            if index_right > frames_correction:
+                                                mean_circle_right = mean_of_mean(mean_circle_right, cerc)
 
                                     print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
-                                    print(index_left, index_right, mean_circle_left, mean_circle_right)
+                                    print(index_left, index_right)
                                     cv2.circle(frame, cerc.centru, cerc.raza, (0, 0, 255), thickness=2)
-
+                                #aici contorizam
         cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
