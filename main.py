@@ -4,6 +4,7 @@ import cv2
 import numpy
 
 marja_eroare = 12
+frames_outside = 5
 
 
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
@@ -31,10 +32,10 @@ def mean_circle(lists_left):
 # TODO:
 #       -sa fie incadrat in patratul ochilui?
 
-def mean_of_mean(mean, cerc):  #primul este media care contine cele doua chestii, centru si raza
-    n_mean = int((mean.centru[0] + cerc.centru[0])/2)
-    n_mean2 = int((mean.centru[1] + cerc.centru[1])/2)
-    n_raza = int((cerc.raza + mean.raza)/2)
+def mean_of_mean(mean, cerc):  # primul este media care contine cele doua chestii, centru si raza
+    n_mean = int((mean.centru[0] + cerc.centru[0]) / 2)
+    n_mean2 = int((mean.centru[1] + cerc.centru[1]) / 2)
+    n_raza = int((cerc.raza + mean.raza) / 2)
     nou = (n_mean, n_mean2)
     return Cercul(nou, n_raza)
 
@@ -65,6 +66,17 @@ def main():
     mean_circle_left = None
     mean_circle_right = None
 
+    def init():
+        nonlocal iris_left, iris_right, frames_correction, index_left, index_right, mean_circle_left, mean_circle_right
+        iris_left = []
+        iris_right = []
+        frames_correction = 10
+        index_left = 0
+        index_right = 0
+
+        mean_circle_left = None
+        mean_circle_right = None
+
     # obiectul video care acceseaza camera
     capture = cv2.VideoCapture(0)
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -80,9 +92,16 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_frames.detectMultiScale(gray, 1.3, 5)
 
+        flag = False
+        contor = 0
         eyes = []
         roi_color = None
-#aici punem if ul ala dubios
+
+        if flag:
+            flag = False
+            contor = 0
+            init()
+
         if index_left == frames_correction:
             mean_circle_left = mean_circle(to_list(iris_left))
             index_left += 1
@@ -104,7 +123,8 @@ def main():
                     edges = cv2.Canny(getArea(roi_gray, (ex, ey, ew, eh)), otsu_thresh * 0.5, otsu_thresh)
                     # cv2.imshow('oachi', edges)
                     edges = cv2.GaussianBlur(edges, (5, 5), cv2.BORDER_DEFAULT)
-                    c = cv2.HoughCircles(image=edges, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew, param1=otsu_thresh,
+                    c = cv2.HoughCircles(image=edges, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew,
+                                         param1=otsu_thresh,
                                          param2=44, minRadius=6, maxRadius=13)
                     # Then mask the pupil from the image and store it's coordinates.
 
@@ -136,10 +156,17 @@ def main():
                                             if index_right > frames_correction:
                                                 mean_circle_right = mean_of_mean(mean_circle_right, cerc)
 
-                                    print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
-                                    print(index_left, index_right)
+                                    # print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
+                                    # print(index_left, index_right)
                                     cv2.circle(frame, cerc.centru, cerc.raza, (0, 0, 255), thickness=2)
-                                #aici contorizam
+                                    if index_left + index_right > 2 * frames_correction:
+                                        if cerc.centru[0] <= ex or cerc.centru[0] >= ex + ew:
+                                            contor = contor + 1
+                                        if cerc.centru[1] <= ey or cerc.centru[1] >= ey + eh:
+                                            contor = contor + 1
+                                        if contor > frames_outside:
+                                            flag = True
+                                            print(contor)
         cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
