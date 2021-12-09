@@ -85,6 +85,9 @@ def main():
     face_frames = cv2.CascadeClassifier("face_capture.xml")
     eyes_frames = cv2.CascadeClassifier("eyes_capture.xml")
 
+    flag_reset = False
+    contor = 0
+
     while True:  # citim pana inchidem camera
         ret, frame = capture.read()
         height, width, channels = frame.shape
@@ -92,13 +95,11 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_frames.detectMultiScale(gray, 1.3, 5)
 
-        flag = False
-        contor = 0
         eyes = []
         roi_color = None
 
-        if flag:
-            flag = False
+        if flag_reset:
+            flag_reset = False
             contor = 0
             init()
 
@@ -118,15 +119,17 @@ def main():
             for (ex, ey, ew, eh) in eyes:
                 if ey + ew <= (y + h) / 2:  # ochii pot fi doar in jumatatea de sus a fetei
                     cv2.rectangle(roi_color, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2)
-                    otsu_thresh, thresh = cv2.threshold(getArea(roi_gray, (ex, ey, ew, eh)), 0, 255,
-                                                        cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                    edges = cv2.Canny(getArea(roi_gray, (ex, ey, ew, eh)), otsu_thresh * 0.5, otsu_thresh)
-                    # cv2.imshow('oachi', edges)
-                    edges = cv2.GaussianBlur(edges, (5, 5), cv2.BORDER_DEFAULT)
-                    c = cv2.HoughCircles(image=edges, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew,
+                    blur = cv2.GaussianBlur(getArea(roi_gray, (ex, ey, ew, eh)), (3, 3), cv2.BORDER_DEFAULT)
+                    otsu_thresh, thresh = cv2.threshold(blur, 0, 255,
+                                                        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                    edges = cv2.Canny(blur, otsu_thresh * 0.5, otsu_thresh)
+                    dilate = cv2.dilate(edges, numpy.ones((3, 3), numpy.uint8), iterations=1)
+                    op = cv2.morphologyEx(dilate, cv2.MORPH_OPEN, numpy.ones((3, 3), numpy.uint8))
+                    eroded = cv2.erode(op, numpy.ones((3, 3), numpy.uint8), iterations=1)
+
+                    c = cv2.HoughCircles(image=eroded, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew,
                                          param1=otsu_thresh,
-                                         param2=44, minRadius=6, maxRadius=13)
-                    # Then mask the pupil from the image and store it's coordinates.
+                                         param2=41, minRadius=3, maxRadius=13)
 
                     if c is not None:
                         for l in c:
@@ -155,18 +158,18 @@ def main():
                                             cerc = check_mean(cerc, mean_circle_right)
                                             if index_right > frames_correction:
                                                 mean_circle_right = mean_of_mean(mean_circle_right, cerc)
-
-                                    # print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
-                                    # print(index_left, index_right)
-                                    cv2.circle(frame, cerc.centru, cerc.raza, (0, 0, 255), thickness=2)
-                                    if index_left + index_right > 2 * frames_correction:
+                                    if index_left + index_right >= 2 * frames_correction:
                                         if cerc.centru[0] <= ex or cerc.centru[0] >= ex + ew:
                                             contor = contor + 1
                                         if cerc.centru[1] <= ey or cerc.centru[1] >= ey + eh:
                                             contor = contor + 1
                                         if contor > frames_outside:
-                                            flag = True
+                                            flag_reset = True
                                             print(contor)
+                                    # print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
+                                    # print(index_left, index_right)
+                                    cv2.circle(frame, cerc.centru, cerc.raza, (0, 0, 255), thickness=2)
+
         cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
