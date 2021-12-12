@@ -3,9 +3,12 @@ from statistics import mean
 import cv2
 import numpy
 
-marja_eroare = 12
+marja_eroare = 10
 frames_outside = 5
 
+
+# TO DO: - trial&error cu hough sa vedem ce cercuri apar si la ce parametru detecteaza irisul -> schimbare dinamic parametru?
+#        - comparare a mai multor cercuri cu media pentru a gasi irisul
 
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
     return frame[zone[1]:zone[1] + zone[3], zone[0]:zone[0] + zone[2]]
@@ -28,9 +31,6 @@ def mean_circle(lists_left):
     mean_c = Cercul((int(mean(lists_left[0])), int(mean(lists_left[1]))), int(mean(lists_left[2])))
     return mean_c
 
-
-# TODO:
-#       -sa fie incadrat in patratul ochilui?
 
 def mean_of_mean(mean, cerc):  # primul este media care contine cele doua chestii, centru si raza
     n_mean = int((mean.centru[0] + cerc.centru[0]) / 2)
@@ -56,7 +56,16 @@ def check_mean(circle, mean_c):
     return circle
 
 
+def check_diff(circle1, circle2):
+    error = 0
+    error += abs(circle2.centru[0] - circle1.centru[0])
+    error += abs(circle2.centru[1] - circle1.centru[1])
+    error += abs(circle2.raza - circle1.raza)
+    return error / 3
+
+
 def main():
+    param2 = 45
     iris_left = []
     iris_right = []
     frames_correction = 10
@@ -78,7 +87,7 @@ def main():
         mean_circle_right = None
 
     # obiectul video care acceseaza camera
-    capture = cv2.VideoCapture(0)
+    capture = cv2.VideoCapture('fata.mp4')
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # importuri pentru clasificatori(ne ajuta sa identificam diferite caracteristici ce ne vor ajuta pe parcursul calcului )
@@ -126,38 +135,44 @@ def main():
                     dilate = cv2.dilate(edges, numpy.ones((3, 3), numpy.uint8), iterations=1)
                     op = cv2.morphologyEx(dilate, cv2.MORPH_OPEN, numpy.ones((3, 3), numpy.uint8))
                     eroded = cv2.erode(op, numpy.ones((3, 3), numpy.uint8), iterations=1)
-
-                    c = cv2.HoughCircles(image=eroded, method=cv2.HOUGH_GRADIENT, dp=2, minDist=ew,
+                    print(param2)
+                    c = cv2.HoughCircles(image=eroded, method=cv2.HOUGH_GRADIENT, dp=2, minDist=1,
                                          param1=otsu_thresh,
-                                         param2=41, minRadius=3, maxRadius=13)
-
+                                         param2=param2, minRadius=1, maxRadius=13)
+                    cerc_left = Cercul((9999, 9999), 0)
+                    cerc_right = Cercul((9999, 9999), 0)
                     if c is not None:
                         for l in c:
                             # OpenCV returns the circles as a list of lists of circles
                             for circle in l:
+                                if len(l > 3):
+                                    param2 += 1
                                 if type(circle) == numpy.ndarray:
                                     center = (int(x + ex + circle[0]), int(y + ey + circle[1]))
                                     radius = int(circle[2])
-                                    print(f'Cerc initial: centru: {center} / raza: {radius} / ', end='')
+                                    # cv2.circle(frame, center, radius, (229, 52, 235), thickness=2)
+                                    # print(f'Cerc initial: centru: {center} / raza: {radius} / ', end='')
                                     cerc = Cercul(center, radius)
                                     if x < cerc.centru[0] < (x + w / 2):
                                         print('Stanga')
                                         if index_left < frames_correction:
                                             iris_left.append(cerc)
                                             index_left += 1
-                                        else:
+                                        elif index_left > frames_correction:
                                             cerc = check_mean(cerc, mean_circle_left)
-                                            if index_left > frames_correction:
-                                                mean_circle_left = mean_of_mean(mean_circle_left, cerc)
+                                            if cerc != mean_circle_left and check_diff(cerc, mean_circle_left) < check_diff(cerc_left, mean_circle_left):
+                                                cerc_left = cerc
+                                            # if index_left > frames_correction:
+                                            #     mean_circle_left = mean_of_mean(mean_circle_left, cerc)
                                     elif (x + w / 2) < cerc.centru[0] < x + w:
                                         print('Dreapta')
                                         if index_right < frames_correction:
                                             iris_right.append(cerc)
                                             index_right += 1
-                                        else:
+                                        elif index_right > frames_correction:
                                             cerc = check_mean(cerc, mean_circle_right)
-                                            if index_right > frames_correction:
-                                                mean_circle_right = mean_of_mean(mean_circle_right, cerc)
+                                            if cerc != mean_circle_right and check_diff(cerc, mean_circle_right) < check_diff(cerc_right, mean_circle_right):
+                                                cerc_right = cerc
                                     if index_left + index_right >= 2 * frames_correction:
                                         if cerc.centru[0] <= ex or cerc.centru[0] >= ex + ew:
                                             contor = contor + 1
@@ -166,10 +181,22 @@ def main():
                                         if contor > frames_outside:
                                             flag_reset = True
                                             print(contor)
-                                    # print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
-                                    # print(index_left, index_right)
-                                    cv2.circle(frame, cerc.centru, cerc.raza, (0, 0, 255), thickness=2)
-
+                                        # print(f'Cerc corectat: centru: {cerc.centru} / raza: {cerc.raza}')
+                                        # print(index_left, index_right)
+                        if cerc_left.raza == 0:
+                            cerc_left = mean_circle_left
+                        if cerc_right.raza == 0:
+                            cerc_right = mean_circle_right
+                        if cerc_left is not None:
+                            mean_circle_left = mean_of_mean(mean_circle_left, cerc_left)
+                            cv2.circle(frame, cerc_left.centru, cerc_left.raza, (0, 0, 255), thickness=2)
+                        if cerc_right is not None:
+                            mean_circle_right = mean_of_mean(mean_circle_right, cerc_right)
+                            cv2.circle(frame, cerc_right.centru, cerc_right.raza, (0, 0, 255), thickness=2)
+                    else:
+                        if param2 > 25:
+                            param2 -= 1
+                    cv2.imshow('eroded', eroded)
         cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
