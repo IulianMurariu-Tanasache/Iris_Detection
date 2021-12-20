@@ -71,6 +71,19 @@ def check_mean_in_eye(mean, eyes):
 
 
 def main():
+    directii = {
+        'N': (0, -1),
+        'NE': (1, -1),
+        'E': (1, 0),
+        'SE': (1, 1),
+        'S': (0, 1),
+        'SW': (-1, 1),
+        'W': (-1, 0),
+        'NW': (-1, -1),
+    }
+    centru_left = None
+    centru_right = None
+
     iris_left = []
     iris_right = []
     frames_correction = 30
@@ -120,9 +133,11 @@ def main():
         if index_left == frames_correction:
             mean_circle_left = mean_circle(to_list(iris_left))
             index_left += 1
+            centru_left = mean_circle_left.centru
 
         if index_right == frames_correction:
             mean_circle_right = mean_circle(to_list(iris_right))
+            centru_right = mean_circle_right.centru
             index_right += 1
 
         for (x, y, w, h) in faces:
@@ -162,7 +177,7 @@ def main():
                                     radius = int(circle[2])
                                     cerc = Cercul(center, radius)
                                     if x < cerc.centru[0] < (x + w / 2):
-                                        print('Stanga')
+                                        #print('Stanga')
                                         if index_left < frames_correction:
                                             iris_left.append(cerc)
                                             index_left += 1
@@ -175,7 +190,7 @@ def main():
                                                 cerc_left = cerc
 
                                     elif (x + w / 2) < cerc.centru[0] < x + w:
-                                        print('Dreapta')
+                                        #print('Dreapta')
                                         if index_right < frames_correction:
                                             iris_right.append(cerc)
                                             index_right += 1
@@ -202,7 +217,10 @@ def main():
                         allGood = False
                     else:
                         mean_circle_left = mean_of_mean(mean_circle_left, cerc_left)
+                    if cerc_left.centru[0] < centru_left[0]:
+                        print('You looked to the Left')
                 cv2.circle(frame, cerc_left.centru, cerc_left.raza, (0, 0, 255), thickness=2)
+
             if cerc_right is not None:
                 if cerc_left is mean_circle_right:
                     contor += 1
@@ -219,7 +237,8 @@ def main():
             if allGood:
                 contor = 0
 
-        cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
+        if index_left < frames_correction or index_right < frames_correction:
+            cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
 
