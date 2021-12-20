@@ -5,6 +5,7 @@ import numpy
 
 marja_eroare = 12
 frames_outside = 8
+marja_dir = 11
 
 
 # TO DO: - trial&error cu hough sa vedem ce cercuri apar si la ce parametru detecteaza irisul -> schimbare dinamic parametru?
@@ -41,19 +42,13 @@ def mean_of_mean(mean, cerc):  # primul este media care contine cele doua chesti
 
 
 def check_mean(circle, mean_c):
-    centru_x = circle.centru[0]
-    centru_y = circle.centru[1]
     if not mean_c.centru[0] - (mean_c.centru[0] * marja_eroare) / 100 <= circle.centru[0] <= mean_c.centru[0] + (
             mean_c.centru[0] * marja_eroare) / 100:
-        centru_x = mean_c.centru[0]
+        return False
     if not mean_c.centru[1] - (marja_eroare * mean_c.centru[1]) / 100 <= circle.centru[1] <= mean_c.centru[1] + (
             mean_c.centru[1] * marja_eroare) / 100:
-        centru_y = mean_c.centru[1]
-    if not mean_c.raza - (mean_c.raza * marja_eroare) / 100 <= circle.raza <= mean_c.raza + (
-            mean_c.raza * marja_eroare) / 100:
-        circle.raza = mean_c.raza
-    circle.centru = (centru_x, centru_y)
-    return circle
+        return False
+    return True
 
 
 def check_diff(circle1, circle2):
@@ -63,11 +58,34 @@ def check_diff(circle1, circle2):
     return error / 2
 
 
-def check_mean_in_eye(mean, eyes):
-    for (x, y, w, h) in eyes:
-        if x <= mean.centru[0] <= x + w and y <= mean.centru[1] <= y + h:
-            return True
-    return False
+def check_in_eye(cerc, eye):
+    if not eye[0] <= cerc.centru[0] <= eye[0] + eye[2]:
+        return False
+    if not eye[1] <= cerc.centru[1] <= eye[1] + eye[3]:
+        return False
+    return True
+
+
+def get_direction(cerc, centru):
+    dir_vert = ''
+    dir_hor = ''
+    if cerc.centru[1] < centru[1] - marja_dir:
+        dir_vert = 'N'
+    elif cerc.centru[1] > centru[1] + marja_dir:
+        dir_vert = 'S'
+    if cerc.centru[0] < centru[0] - marja_dir:
+        dir_vert = 'W'
+    elif cerc.centru[0] > centru[0] + marja_dir:
+        dir_vert = 'E'
+    return dir_vert + dir_hor
+
+
+def strIntersection(s1, s2):
+    out = ""
+    for c in s1:
+        if c in s2 and not c in out:
+            out += c
+    return out
 
 
 def main():
@@ -81,6 +99,7 @@ def main():
         'W': (-1, 0),
         'NW': (-1, -1),
     }
+
     centru_left = None
     centru_right = None
 
@@ -124,16 +143,16 @@ def main():
 
         eyes = []
         roi_color = None
+        direction = ''
 
         if flag_reset:
             flag_reset = False
-            contor = 0
             init()
 
         if index_left == frames_correction:
             mean_circle_left = mean_circle(to_list(iris_left))
-            index_left += 1
             centru_left = mean_circle_left.centru
+            index_left += 1
 
         if index_right == frames_correction:
             mean_circle_right = mean_circle(to_list(iris_right))
@@ -144,6 +163,11 @@ def main():
             cerc_left = Cercul((9999, 9999), 0)
             cerc_right = Cercul((9999, 9999), 0)
 
+            reset_left = False  # impotriva ochilor falsi
+            reset_right = False
+            found_left = False
+            found_right = False
+
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
             roi_gray = gray[y:y + h, x:x + w]
             roi_color = frame[y:y + h, x:x + w]
@@ -151,6 +175,7 @@ def main():
 
             allGood = True
             for (ex, ey, ew, eh) in eyes:
+
                 if ey + ew <= (y + h) / 2:  # ochii pot fi doar in jumatatea de sus a fetei
                     cv2.rectangle(roi_color, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2)
                     blur = cv2.GaussianBlur(getArea(roi_gray, (ex, ey, ew, eh)), (3, 3), cv2.BORDER_DEFAULT)
@@ -176,70 +201,83 @@ def main():
                                     center = (int(x + ex + circle[0]), int(y + ey + circle[1]))
                                     radius = int(circle[2])
                                     cerc = Cercul(center, radius)
+
                                     if x < cerc.centru[0] < (x + w / 2):
-                                        #print('Stanga')
+                                        # print('Stanga')
                                         if index_left < frames_correction:
-                                            iris_left.append(cerc)
-                                            index_left += 1
-                                            cerc_left = cerc
-                                        elif index_left > frames_correction:
-                                            cerc = check_mean(cerc, mean_circle_left)
-                                            if cerc != mean_circle_left and check_diff(cerc,
-                                                                                       mean_circle_left) < check_diff(
-                                                cerc_left, mean_circle_left):
+                                            if check_diff(cerc, Cercul((x + ex + ew / 2, y + ey + eh / 2), 8)) < 10:
+                                                iris_left.append(cerc)
+                                                index_left += 1
                                                 cerc_left = cerc
 
+                                        elif index_left > frames_correction:
+                                            if not check_mean(cerc, mean_circle_left):
+                                                if not check_in_eye(mean_circle_left,
+                                                                    (ex, ey, ew, eh)) and not found_left:
+                                                    reset_left = True
+                                                else:
+                                                    reset_left = False
+                                            else:
+                                                reset_left = False
+                                                found_left = True
+                                                if check_diff(cerc, mean_circle_left) < check_diff(cerc_left,
+                                                                                                   mean_circle_left):
+                                                    cerc_left = cerc
+
                                     elif (x + w / 2) < cerc.centru[0] < x + w:
-                                        #print('Dreapta')
+                                        # print('Dreapta')
                                         if index_right < frames_correction:
-                                            iris_right.append(cerc)
-                                            index_right += 1
-                                            cerc_right = cerc
-                                        elif index_right > frames_correction:
-                                            cerc = check_mean(cerc, mean_circle_right)
-                                            if cerc != mean_circle_right and check_diff(cerc,
-                                                                                        mean_circle_right) < check_diff(
-                                                cerc_right, mean_circle_right):
+                                            if check_diff(cerc, Cercul((x + ex + ew / 2, y + ey + eh / 2), 8)) < 10:
+                                                iris_right.append(cerc)
+                                                index_right += 1
                                                 cerc_right = cerc
+
+                                        elif index_right > frames_correction:
+                                            if not check_mean(cerc, mean_circle_right):
+                                                if not check_in_eye(mean_circle_right,
+                                                                    (ex, ey, ew, eh)) and not found_right:
+                                                    reset_right = True
+                                                else:
+                                                    reset_right = False
+                                            else:
+                                                found_right = True
+                                                reset_right = False
+                                                if check_diff(cerc, mean_circle_right) < check_diff(cerc_right,
+                                                                                                    mean_circle_right):
+                                                    cerc_right = cerc
+
                         cv2.imshow('eroded', eroded)
-
-            if cerc_left.raza == 0:
-                cerc_left = mean_circle_left
-            if cerc_right.raza == 0:
-                cerc_right = mean_circle_right
-            if cerc_left is not None:
-                if cerc_left is mean_circle_left:
-                    contor += 1
-                    allGood = False
-                if index_left > frames_correction:
-                    if not check_mean_in_eye(mean_circle_left, eyes):
-                        contor += 1
-                        allGood = False
-                    else:
-                        mean_circle_left = mean_of_mean(mean_circle_left, cerc_left)
-                    if cerc_left.centru[0] < centru_left[0]:
-                        print('You looked to the Left')
-                cv2.circle(frame, cerc_left.centru, cerc_left.raza, (0, 0, 255), thickness=2)
-
-            if cerc_right is not None:
-                if cerc_left is mean_circle_right:
-                    contor += 1
-                    allGood = False
-                if index_right > frames_correction:
-                    if not check_mean_in_eye(mean_circle_right, eyes):
-                        contor += 1
-                        allGood = False
-                    else:
-                        mean_circle_right = mean_of_mean(mean_circle_right, cerc_right)
-                cv2.circle(frame, cerc_right.centru, cerc_right.raza, (0, 0, 255), thickness=2)
-            if contor > frames_outside:
-                flag_reset = True
-            if allGood:
+            if reset_left or reset_right:
+                contor += 1
+            else:
                 contor = 0
+            if contor > 3:
+                flag_reset = True
+            if not flag_reset:  # nu trebuie resetata calibrarea
+                if index_left > frames_correction:
+                    # nu s-a gasit un cerc bun
+                    if cerc_left.raza == 0 or cerc_left is None:
+                        cerc_left = mean_circle_left
+                    mean_circle_left = mean_of_mean(mean_circle_left, cerc_left)
+                    direction =  get_direction(cerc_left, centru_left)
+                    #print('left: ' + get_direction(cerc_left, centru_left))
+
+                if index_right > frames_correction:
+                    # nu s-a gasit un cerc bun
+                    if cerc_right.raza == 0 or cerc_right is None:
+                        cerc_right = mean_circle_right
+                    mean_circle_right = mean_of_mean(mean_circle_right, cerc_right)
+                    direction = strIntersection(direction, get_direction(cerc_right, centru_right))
+                    #print('right: ' + get_direction(cerc_right, centru_right))
+                    print(direction)
+
+                if cerc_left is not None:  # in perioada de calibrare nu se gaseste niciun cerc
+                    cv2.circle(frame, cerc_left.centru, cerc_left.raza, (0, 0, 255), thickness=2)
+                if cerc_right is not None:  # in perioada de calibrare nu se gaseste niciun cerc
+                    cv2.circle(frame, cerc_right.centru, cerc_right.raza, (0, 0, 255), thickness=2)
 
         if index_left < frames_correction or index_right < frames_correction:
             cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
-        # cv2.imwrite(path + 'pillar_text.jpg', im)
         cv2.imshow('Eyes detections', frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
