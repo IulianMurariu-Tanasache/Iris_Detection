@@ -8,9 +8,6 @@ frames_outside = 8
 marja_dir = 11
 
 
-# TO DO: - trial&error cu hough sa vedem ce cercuri apar si la ce parametru detecteaza irisul -> schimbare dinamic parametru?
-#        - comparare a mai multor cercuri cu media pentru a gasi irisul
-
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
     return frame[zone[1]:zone[1] + zone[3], zone[0]:zone[0] + zone[2]]
 
@@ -259,8 +256,8 @@ def main():
                     if cerc_left.raza == 0 or cerc_left is None:
                         cerc_left = mean_circle_left
                     mean_circle_left = mean_of_mean(mean_circle_left, cerc_left)
-                    direction =  get_direction(cerc_left, centru_left)
-                    #print('left: ' + get_direction(cerc_left, centru_left))
+                    direction = get_direction(cerc_left, centru_left)
+                    # print('left: ' + get_direction(cerc_left, centru_left))
 
                 if index_right > frames_correction:
                     # nu s-a gasit un cerc bun
@@ -268,7 +265,7 @@ def main():
                         cerc_right = mean_circle_right
                     mean_circle_right = mean_of_mean(mean_circle_right, cerc_right)
                     direction = strIntersection(direction, get_direction(cerc_right, centru_right))
-                    #print('right: ' + get_direction(cerc_right, centru_right))
+                    # print('right: ' + get_direction(cerc_right, centru_right))
                     print(direction)
 
                 if cerc_left is not None:  # in perioada de calibrare nu se gaseste niciun cerc
@@ -279,6 +276,8 @@ def main():
         if index_left < frames_correction or index_right < frames_correction:
             cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.imshow('Eyes detections', frame)
+
+        #miscare mouse
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
