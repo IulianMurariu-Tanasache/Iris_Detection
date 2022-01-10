@@ -2,6 +2,7 @@ from statistics import mean
 
 import cv2
 import numpy
+import pyautogui
 
 marja_eroare = 12
 frames_outside = 8
@@ -277,7 +278,38 @@ def main():
             cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.imshow('Eyes detections', frame)
 
-        #miscare mouse
+        if cerc_right and cerc_left :
+            open = 1
+        else:
+            open = 0
+        print("++++++++++++++++++++++++" +str(open))
+        if open:
+            screenW, screenH = pyautogui.size()
+
+            currentMouseX, currentMouseY = pyautogui.position()
+            # print("curent position on the cursor: ", "X: "+str(currentMouseX) +" \nY:"+ str(currentMouseY))
+            if direction == "N":
+                pyautogui.move(0, -30)
+            if direction == 'E':
+                pyautogui.move(30, 0)
+            if direction == 'S':
+                pyautogui.move(0, 30)
+            if direction == 'W':
+                pyautogui.move(-30, 0)
+            if direction == 'NE':
+                pyautogui.move(20, -20)
+            if direction == 'SE':
+                pyautogui.move(20, 20)
+            if direction == 'SW':
+                pyautogui.move(-20, 20)
+            if direction == 'NW':
+                pyautogui.move(-20, -20)
+            #clici?
+            if cerc_right and not cerc_left:
+                pyautogui.click(button='right')
+            if cerc_left and not cerc_right:
+                pyautogui.click(button='left')
+
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
