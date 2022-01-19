@@ -4,9 +4,9 @@ import cv2
 import numpy
 import pyautogui
 
-marja_eroare = 12
+marja_eroare = 26
 frames_outside = 8
-marja_dir = 11
+marja_dir = 8
 
 
 def getArea(frame, zone):  # zone: zone x, zone y - > stanga sus si zone w, zone h -> lungime, latime
@@ -40,11 +40,9 @@ def mean_of_mean(mean, cerc):  # primul este media care contine cele doua chesti
 
 
 def check_mean(circle, mean_c):
-    if not mean_c.centru[0] - (mean_c.centru[0] * marja_eroare) / 100 <= circle.centru[0] <= mean_c.centru[0] + (
-            mean_c.centru[0] * marja_eroare) / 100:
+    if not mean_c.centru[0] - marja_eroare <= circle.centru[0] <= mean_c.centru[0] + marja_eroare:
         return False
-    if not mean_c.centru[1] - (marja_eroare * mean_c.centru[1]) / 100 <= circle.centru[1] <= mean_c.centru[1] + (
-            mean_c.centru[1] * marja_eroare) / 100:
+    if not mean_c.centru[1] - marja_eroare <= circle.centru[1] <= mean_c.centru[1] + marja_eroare:
         return False
     return True
 
@@ -72,9 +70,9 @@ def get_direction(cerc, centru):
     elif cerc.centru[1] > centru[1] + marja_dir:
         dir_vert = 'S'
     if cerc.centru[0] < centru[0] - marja_dir:
-        dir_vert = 'W'
+        dir_hor = 'W'
     elif cerc.centru[0] > centru[0] + marja_dir:
-        dir_vert = 'E'
+        dir_hor = 'E'
     return dir_vert + dir_hor
 
 
@@ -87,6 +85,7 @@ def strIntersection(s1, s2):
 
 
 def main():
+    pyautogui.FAILSAFE = False
     directii = {
         'N': (0, -1),
         'NE': (1, -1),
@@ -122,7 +121,7 @@ def main():
         mean_circle_right = None
 
     # obiectul video care acceseaza camera
-    capture = cv2.VideoCapture('fata.mp4')
+    capture = cv2.VideoCapture('fata2.mp4')
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # importuri pentru clasificatori(ne ajuta sa identificam diferite caracteristici ce ne vor ajuta pe parcursul calcului )
@@ -187,10 +186,12 @@ def main():
                     param2 = 45
                     while c is None:
                         c = cv2.HoughCircles(image=eroded, method=cv2.HOUGH_GRADIENT, dp=2, minDist=1,
-                                             param1=otsu_thresh,
-                                             param2=param2, minRadius=1, maxRadius=13)
-                        param2 -= 1
+                                             param1=otsu_thresh, param2=param2, minRadius=4, maxRadius=13)
 
+                        if param2 > 2:
+                            param2 -= 1
+                        else:
+                            break
                     if c is not None:
                         for l in c:
                             # OpenCV returns the circles as a list of lists of circles
@@ -199,9 +200,10 @@ def main():
                                     center = (int(x + ex + circle[0]), int(y + ey + circle[1]))
                                     radius = int(circle[2])
                                     cerc = Cercul(center, radius)
-
+                                    # cv2.circle(frame, cerc.centru, cerc.raza, (200, 80, 100), thickness=2)
                                     if x < cerc.centru[0] < (x + w / 2):
                                         # print('Stanga')
+                                        cv2.imshow('left eye', eroded)
                                         if index_left < frames_correction:
                                             if check_diff(cerc, Cercul((x + ex + ew / 2, y + ey + eh / 2), 8)) < 10:
                                                 iris_left.append(cerc)
@@ -223,6 +225,7 @@ def main():
                                                     cerc_left = cerc
 
                                     elif (x + w / 2) < cerc.centru[0] < x + w:
+                                        cv2.imshow('right eye', eroded)
                                         # print('Dreapta')
                                         if index_right < frames_correction:
                                             if check_diff(cerc, Cercul((x + ex + ew / 2, y + ey + eh / 2), 8)) < 10:
@@ -244,7 +247,6 @@ def main():
                                                                                                     mean_circle_right):
                                                     cerc_right = cerc
 
-                        cv2.imshow('eroded', eroded)
             if reset_left or reset_right:
                 contor += 1
             else:
@@ -278,38 +280,35 @@ def main():
             cv2.putText(frame, 'Calibration: Look straight', (50, 50), font, 1.3, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.imshow('Eyes detections', frame)
 
-        if cerc_right and cerc_left :
-            open = 1
-        else:
-            open = 0
-        print("++++++++++++++++++++++++" +str(open))
-        if open:
-            screenW, screenH = pyautogui.size()
-
-            currentMouseX, currentMouseY = pyautogui.position()
-            # print("curent position on the cursor: ", "X: "+str(currentMouseX) +" \nY:"+ str(currentMouseY))
-            if direction == "N":
-                pyautogui.move(0, -30)
-            if direction == 'E':
-                pyautogui.move(30, 0)
-            if direction == 'S':
-                pyautogui.move(0, 30)
-            if direction == 'W':
-                pyautogui.move(-30, 0)
-            if direction == 'NE':
-                pyautogui.move(20, -20)
-            if direction == 'SE':
-                pyautogui.move(20, 20)
-            if direction == 'SW':
-                pyautogui.move(-20, 20)
-            if direction == 'NW':
-                pyautogui.move(-20, -20)
-            #clici?
-            if cerc_right and not cerc_left:
-                pyautogui.click(button='right')
-            if cerc_left and not cerc_right:
-                pyautogui.click(button='left')
-
+        if index_left > frames_correction and index_right > frames_correction:
+            if cerc_right and cerc_left:
+                open = 1
+            else:
+                open = 0
+            # print("++++++++++++++++++++++++" +str(open))
+            if open:
+                screenW, screenH = pyautogui.size()
+                currentMouseX, currentMouseY = pyautogui.position()
+                if direction == "N":
+                    pyautogui.move(0, -30)
+                if direction == 'E':
+                    pyautogui.move(30, 0)
+                if direction == 'S':
+                    pyautogui.move(0, 30)
+                if direction == 'W':
+                    pyautogui.move(-30, 0)
+                if direction == 'NE':
+                    pyautogui.move(20, -20)
+                if direction == 'SE':
+                    pyautogui.move(20, 20)
+                if direction == 'SW':
+                    pyautogui.move(-20, 20)
+                if direction == 'NW':
+                    pyautogui.move(-20, -20)
+                if cerc_right and not cerc_left:
+                    pyautogui.click(button='right')
+                if cerc_left and not cerc_right:
+                    pyautogui.click(button='left')
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
